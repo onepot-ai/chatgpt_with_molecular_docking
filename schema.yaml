@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: Docking API
+  description: Dock a SMILES against a target and return previewable HTML via a tiny GET endpoint.
+  version: v1.3.0
+servers:
+  - url: https://onepot-ai--awesome-docking-dock.modal.run
+paths:
+  /:
+    post:
+      operationId: dockMolecule
+      summary: Dock a molecule
+      description: Runs docking for the provided SMILES or compound name and returns preview URLs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DockRequest'
+      responses:
+        "200":
+          description: Docking result with preview URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DockResult'
+        "422":
+          description: Docking failed for this input
+        "500":
+          description: Server error
+  /preview:
+    get:
+      operationId: previewHtml
+      summary: Serve an HTML viewer for a docking result
+      description: Returns a standalone HTML page for the ligand-only or complex view.
+      parameters:
+        - in: query
+          name: target
+          required: true
+          schema: { type: string }
+          description: Target name (e.g., DRD2)
+        - in: query
+          name: ik
+          required: true
+          schema: { type: string }
+          description: InChIKey of the docked ligand
+        - in: query
+          name: kind
+          required: true
+          schema:
+            type: string
+            enum: [ligand, combined]
+          description: Which page to render
+      responses:
+        "200":
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not found
+components:
+  schemas:
+    DockRequest:
+      type: object
+      description: Provide either a SMILES or a compound name.
+      properties:
+        smiles:
+          type: string
+          minLength: 1
+          description: Ligand in SMILES
+        target_name:
+          type: string
+          default: DRD2
+          description: Dockstring target name (e.g., DRD2)
+      oneOf:
+        - required: [smiles]
+    DockResult:
+      type: object
+      required:
+        - smiles
+        - target_name
+        - score
+        - visualization_urls
+      properties:
+        smiles:
+          type: string
+        target_name:
+          type: string
+        score:
+          type: number
+        visualization_urls:
+          type: array
+          description: Direct links to /preview pages (the model should print these).
+          items:
+            type: string
+            format: uri
+          minItems: 1
+          maxItems: 10
