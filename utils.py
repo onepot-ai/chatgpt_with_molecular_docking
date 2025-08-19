@@ -67,7 +67,7 @@ def setup_vina():
 def plot_pdb_to_html(
     pdb_path: str,
     background: str = "#FDFDFD",
-    out_path: str = "view.html",
+    output_path: str = "view.html",
     width: str = "100%",
     height: str = "900px",
 ) -> str:
@@ -86,11 +86,11 @@ def plot_pdb_to_html(
         except Exception:
             pass
     try:
-        nv.write_html(out_path, [v])
+        nv.write_html(output_path, [v])
     except Exception:
         from nglview import write_html
 
-        write_html(out_path, [v])
+        write_html(output_path, [v])
 
 
 # --- HELPERS --- #
@@ -193,7 +193,7 @@ def generate_visualizations(
 ) -> dict:
     """Generate HTML visualizations using NGL viewer"""
 
-    base_url = "https://onepot-ai--molecular-docking-demo-view-structure.modal.run"
+    base_url = "https://onepot-ai--awesome-docking-view-structure.modal.run"
 
     # Generate visualization files
     plot_pdb_to_html(
@@ -214,7 +214,7 @@ def generate_visualizations(
     }
 
 
-def read_file_with_retry(file_path: str, max_attempts: int = 50) -> Optional[str]:
+def read_file_with_retry(file_path: str, max_attempts: int = 50) -> str | None:
     """Read file with retries to handle volume sync delays"""
 
     for attempt in range(max_attempts):

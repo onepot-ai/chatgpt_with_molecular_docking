@@ -17,8 +17,8 @@ image = (
     .add_local_file("utils.py", "/root/utils.py")
 )
 
-app = modal.App("molecular-docking-demo", image=image)
-volume = modal.Volume.from_name("docking-results-volume", create_if_missing=True)
+app = modal.App("awesome-docking", image=image)
+volume = modal.Volume.from_name("awesome-docking-volume", create_if_missing=True)
 
 with image.imports():
     from dockstring import load_target
@@ -57,7 +57,7 @@ class DockingResult(BaseModel):
     min_containers=1,
     cpu=4,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def dock_molecule(request: DockingRequest) -> DockingResult:
     """
     Main docking endpoint that performs molecular docking and generates visualizations.
@@ -119,7 +119,7 @@ def dock_molecule(request: DockingRequest) -> DockingResult:
     min_containers=2,
     allow_concurrent_inputs=100,
 )
-@modal.web_endpoint(method="GET")
+@modal.fastapi_endpoint(method="GET")
 def view_structure(structure_type: str, target: str, molecule_id: str):
     """
     Serve interactive 3D visualizations of docked structures.
