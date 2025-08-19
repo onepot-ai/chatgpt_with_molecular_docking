@@ -55,8 +55,7 @@ class DockingResult(BaseModel):
     timeout=300,
     volumes={"/data": volume},
     min_containers=1,
-    cpu=8,
-    memory=16384,
+    cpu=4,
 )
 @modal.web_endpoint(method="POST")
 def dock_molecule(request: DockingRequest) -> DockingResult:
@@ -78,7 +77,7 @@ def dock_molecule(request: DockingRequest) -> DockingResult:
         targets_dir="/data/targets",
     )
 
-    docking_score, auxiliary_data = target.dock(request.smiles, num_cpus=8)
+    docking_score, auxiliary_data = target.dock(request.smiles, num_cpus=4)
 
     if docking_score is None:
         raise ValueError(f"Docking failed for {request.smiles}")
