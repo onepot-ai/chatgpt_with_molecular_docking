@@ -1,8 +1,7 @@
 import os
+import shutil
 import time
 from pathlib import Path
-
-import nglview as nv
 
 from dockstring.utils import convert_pdbqt_to_pdb, get_bin_dir, get_vina_filename
 
@@ -63,34 +62,7 @@ def setup_vina():
     os.chmod(pkg_vina, 0o755)
 
 
-# --- PDB visualization (returns standalone HTML) ---
-def plot_pdb_to_html(
-    pdb_path: str,
-    background: str = "#FDFDFD",
-    output_path: str = "view.html",
-    width: str = "100%",
-    height: str = "900px",
-) -> str:
-    v = nv.show_structure_file(pdb_path, ext="pdb")
-    v.background = background
-    v.clear_representations()
-    v.add_representation("cartoon", selection="polymer", color="sstruc")
-    v.add_representation("licorice", selection="not polymer")
-    v.center()
-    try:
-        v._set_size(width, height)
-    except Exception:
-        try:
-            v.layout.width = width
-            v.layout.height = height
-        except Exception:
-            pass
-    try:
-        nv.write_html(output_path, [v])
-    except Exception:
-        from nglview import write_html
-
-        write_html(output_path, [v])
+# Viewer HTML is generated on the fly in the endpoint using 3Dmol.js
 
 
 # --- HELPERS --- #
@@ -110,9 +82,13 @@ def save_docking_results(target_name: str, inchi_key: str) -> dict:
     else:
         raise FileNotFoundError("Docking output not found")
 
-    # Move to permanent location
+    # Move to permanent location (use copy+remove; rename not supported on this FS)
     destination = f"{output_dir}/{inchi_key}.pdb"
-    os.rename(source_file, destination)
+    shutil.copyfile(source_file, destination)
+    try:
+        os.remove(source_file)
+    except Exception:
+        pass
 
     return {"ligand": destination}
 
@@ -142,24 +118,30 @@ def create_complex_pdb(target_name: str, inchi_key: str, ligand_pdb: str) -> str
 
 
 def _extract_best_pose(ligand_lines: list[str]) -> list[str]:
-    """Extract the best-scoring pose from multi-model PDB"""
+    """Extract atoms from the first MODEL block (best Vina pose)."""
 
-    atom_lines = []
-    in_first_model = True
+    atoms: list[str] = []
+    in_model = False
 
     for line in ligand_lines:
-        if line.startswith("MODEL") and line.strip() != "MODEL        1":
-            in_first_model = False
-        if in_first_model and (line.startswith("ATOM") or line.startswith("HETATM")):
-            atom_lines.append(line)
-        if line.startswith("ENDMDL"):
-            break
+        if line.startswith("MODEL") and not in_model:
+            in_model = True
+            continue
+        if in_model:
+            if line.startswith("ENDMDL"):
+                break
+            if line.startswith("ATOM") or line.startswith("HETATM"):
+                atoms.append(line)
 
-    return (
-        atom_lines
-        if atom_lines
-        else [l for l in ligand_lines if l.startswith("ATOM") or l.startswith("HETATM")]
-    )
+    if atoms:
+        return atoms
+
+    # Fallback: files without MODEL blocks – collect all atoms
+    return [
+        line
+        for line in ligand_lines
+        if line.startswith("ATOM") or line.startswith("HETATM")
+    ]
 
 
 def _write_complex_pdb(
@@ -190,51 +172,12 @@ def _write_complex_pdb(
 
 def generate_visualizations(
     target_name: str, inchi_key: str, ligand_pdb: str, complex_pdb: str
-) -> dict:
-    """Generate HTML visualizations using NGL viewer"""
+) -> list[str]:
+    """Return viewer URLs for ligand and complex without pre-rendering HTML files"""
 
     base_url = "https://onepot-ai--awesome-docking-view-structure.modal.run"
 
-    # Generate visualization files
-    plot_pdb_to_html(
-        ligand_pdb, output_path=f"/data/docking_results/{target_name}/{inchi_key}.html"
-    )
-
-    plot_pdb_to_html(
-        complex_pdb,
-        output_path=f"/data/docking_results/{target_name}/{inchi_key}_complex.html",
-    )
-
-    # Force filesystem sync
-    os.sync()
-
-    return {
-        "ligand": f"{base_url}?structure_type=ligand&target={target_name}&molecule_id={inchi_key}",
-        "complex": f"{base_url}?structure_type=complex&target={target_name}&molecule_id={inchi_key}",
-    }
-
-
-def read_file_with_retry(file_path: str, max_attempts: int = 50) -> str | None:
-    """Read file with retries to handle volume sync delays"""
-
-    for attempt in range(max_attempts):
-        if os.path.exists(file_path):
-            try:
-                # Force metadata sync
-                os.stat(file_path)
-                time.sleep(0.05)
-
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                # Verify content is valid
-                if content and len(content) > 100:
-                    return content
-            except Exception:
-                pass
-
-        # Exponential backoff
-        delay = min(0.1 * (1.5 ** (attempt // 10)), 2.0)
-        time.sleep(delay)
-
-    return None
+    return [
+        f"{base_url}?structure_type=ligand&target={target_name}&molecule_id={inchi_key}",
+        f"{base_url}?structure_type=complex&target={target_name}&molecule_id={inchi_key}",
+    ]

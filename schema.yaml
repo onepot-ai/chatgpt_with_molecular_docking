@@ -4,7 +4,8 @@ info:
   description: Dock a SMILES against a target and return previewable HTML via a tiny GET endpoint.
   version: v1.3.0
 servers:
-  - url: https://onepot-ai--awesome-docking-dock.modal.run
+  - url: https://onepot-ai--awesome-docking-dock-molecule.modal.run
+  - url: https://onepot-ai--awesome-docking-view-structure.modal.run
 paths:
   /:
     post:
@@ -28,29 +29,28 @@ paths:
           description: Docking failed for this input
         "500":
           description: Server error
-  /preview:
+  /view:
     get:
-      operationId: previewHtml
-      summary: Serve an HTML viewer for a docking result
-      description: Returns a standalone HTML page for the ligand-only or complex view.
+      operationId: viewStructure
+      summary: Serve an interactive HTML viewer for a docked structure
+      description: Returns a self-contained HTML page using 3Dmol.js for ligand or complex.
       parameters:
+        - in: query
+          name: structure_type
+          required: true
+          schema:
+            type: string
+            enum: [ligand, complex]
         - in: query
           name: target
           required: true
           schema: { type: string }
           description: Target name (e.g., DRD2)
         - in: query
-          name: ik
+          name: molecule_id
           required: true
           schema: { type: string }
           description: InChIKey of the docked ligand
-        - in: query
-          name: kind
-          required: true
-          schema:
-            type: string
-            enum: [ligand, combined]
-          description: Which page to render
       responses:
         "200":
           description: HTML page
@@ -58,6 +58,8 @@ paths:
             text/html:
               schema:
                 type: string
+        "400":
+          description: Invalid input
         "404":
           description: Not found
 components:
@@ -92,7 +94,7 @@ components:
           type: number
         visualization_urls:
           type: array
-          description: Direct links to /preview pages (the model should print these).
+          description: Direct links to /view pages (the model should print these).
           items:
             type: string
             format: uri
